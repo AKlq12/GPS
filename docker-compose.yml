@@ -17,3 +17,20 @@ services:
     environment:
       # Sangat berguna untuk hot-reload di Windows
       - CHOKIDAR_USEPOLLING=true
+
+  db:
+    image: mysql:8.0
+    container_name: printpoint_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: printpoint_db
+      MYSQL_USER: printpoint_user
+      MYSQL_PASSWORD: userpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - printpoint_db_data:/var/lib/mysql
+
+volumes:
+  printpoint_db_data:
