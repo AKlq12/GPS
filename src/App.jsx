@@ -4,8 +4,13 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
 import RoutingMachine from './RoutingMachine';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+// --- CONFIG ---
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // --- CONFIG ICON ---
 let DefaultIcon = L.icon({
@@ -85,7 +90,9 @@ const Sidebar = ({
   mapMode, 
   setMapMode,
   shopsList, 
-  onShopClick 
+  onShopClick,
+  user,
+  onLogout
 }) => {
   return (
     // Sidebar Container dengan Glassmorphism & Animasi Halus
@@ -102,6 +109,30 @@ const Sidebar = ({
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
+
+        {/* User Info & Logout */}
+        {user && (
+          <div className="flex items-center justify-between mt-2 mb-1 bg-gradient-to-r from-blue-50 to-indigo-50 p-2.5 rounded-xl border border-blue-100/50">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white text-xs font-bold shadow-md">
+                {user.name ? user.name.charAt(0).toUpperCase() : '?'}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-700 leading-tight">{user.name}</p>
+                <p className="text-[9px] text-slate-400 leading-tight">{user.email}</p>
+              </div>
+            </div>
+            <button 
+              onClick={onLogout}
+              className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all"
+              title="Logout"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Content Scrollable */}
@@ -223,6 +254,13 @@ const Sidebar = ({
 
 // --- APP UTAMA ---
 function App() {
+  // Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+  const [authPage, setAuthPage] = useState('login'); // 'login' or 'register'
+
+  // App State
   const [shops, setShops] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   
@@ -234,12 +272,50 @@ function App() {
   const [mapMode, setMapMode] = useState("street"); 
   const [flyToLocation, setFlyToLocation] = useState(null);
 
+  // Cek token di localStorage saat pertama kali load
   useEffect(() => {
-    fetch('/shops.json?v=' + new Date().getTime())
-      .then(res => res.json())
-      .then(data => setShops(data))
-      .catch(err => console.error(err));
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    if (savedToken && savedUser) {
+      setToken(savedToken);
+      setUser(JSON.parse(savedUser));
+      setIsAuthenticated(true);
+    }
+  }, []);
 
+  // Fetch shops dari API setelah login
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+
+    fetch(`${API_URL}/api/shops`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+      .then(res => {
+        if (res.status === 401 || res.status === 403) {
+          // Token expired atau invalid
+          handleLogout();
+          return [];
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) {
+          setShops(data);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching shops:', err);
+        // Fallback ke file statis jika API gagal
+        fetch('/shops.json?v=' + new Date().getTime())
+          .then(res => res.json())
+          .then(data => setShops(data))
+          .catch(err2 => console.error('Fallback also failed:', err2));
+      });
+
+    // Get user location
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setUserLocation([pos.coords.latitude, pos.coords.longitude]),
@@ -253,7 +329,24 @@ function App() {
     }
     
     if (window.innerWidth < 768) setIsSidebarOpen(false);
-  }, []);
+  }, [isAuthenticated, token]);
+
+  // --- AUTH HANDLERS ---
+  const handleLogin = (userData, tokenData) => {
+    setUser(userData);
+    setToken(tokenData);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+    setToken(null);
+    setIsAuthenticated(false);
+    setShops([]);
+    setAuthPage('login');
+  };
 
   const getWALink = (shopName) => {
     return `https://wa.me/628123456789?text=Halo ${shopName}, mau tanya harga print?`;
@@ -270,6 +363,24 @@ function App() {
     return matchCategory && matchSearch && matchDistance;
   });
 
+  // --- RENDER AUTH PAGES ---
+  if (!isAuthenticated) {
+    if (authPage === 'register') {
+      return (
+        <RegisterPage 
+          onSwitchToLogin={() => setAuthPage('login')}
+        />
+      );
+    }
+    return (
+      <LoginPage 
+        onLogin={handleLogin}
+        onSwitchToRegister={() => setAuthPage('register')}
+      />
+    );
+  }
+
+  // --- RENDER MAP (setelah login) ---
   return (
     <div className="h-screen w-full flex bg-slate-900 overflow-hidden relative font-sans">
       
@@ -289,6 +400,8 @@ function App() {
           setFlyToLocation(loc); 
           if (window.innerWidth < 768) setIsSidebarOpen(false); 
         }}
+        user={user}
+        onLogout={handleLogout}
       />
 
       {/* Floating Toggle Button (Modern Bubble) */}

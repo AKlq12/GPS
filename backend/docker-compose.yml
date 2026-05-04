@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # Service 1: Backend API (Node.js + Express)
+  # ============================================
+  backend:
+    build: .
+    container_name: printpoint_backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=db
+      - DB_USER=printpoint_user
+      - DB_PASSWORD=userpassword
+      - DB_NAME=printpoint_db
+      - DB_PORT=3306
+      - JWT_SECRET=printpoint_super_secret_key_2025
+      - PORT=3000
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - printpoint_network
+
+  # ============================================
+  # Service 2: Database MySQL 8.0
+  # ============================================
+  db:
+    image: mysql:8.0
+    container_name: printpoint_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: printpoint_db
+      MYSQL_USER: printpoint_user
+      MYSQL_PASSWORD: userpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - printpoint_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - printpoint_network
+
+volumes:
+  printpoint_db_data:
+
+networks:
+  printpoint_network:
+    driver: bridge

@@ -1,36 +1,22 @@
 version: '3.8'
 
+# ============================================
+# Docker Compose untuk VM WINDOWS 10 (Frontend)
+# ============================================
+# PENTING: Ganti IP_UBUNTU_SERVER di bawah dengan
+# IP address Ubuntu Server kamu yang sebenarnya!
+# Cek IP di Ubuntu dengan: hostname -I
+# ============================================
+
 services:
   web:
-    image: node:20-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # ⚠️ GANTI IP INI dengan IP Ubuntu Server kamu!
+        VITE_API_URL: http://192.168.1.100:3000
     container_name: printpoint_web
-    working_dir: /app
-    volumes:
-      - .:/app
-      # Hindari mount node_modules dari host ke dalam container
-      - /app/node_modules
-    ports:
-      - "5173:5173"
-    # Menjalankan instalasi dependency dan server development Vite
-    # --host diperlukan agar Vite bisa diakses dari luar container Docker
-    command: sh -c "npm install && npm run dev -- --host"
-    environment:
-      # Sangat berguna untuk hot-reload di Windows
-      - CHOKIDAR_USEPOLLING=true
-
-  db:
-    image: mysql:8.0
-    container_name: printpoint_db
     restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: printpoint_db
-      MYSQL_USER: printpoint_user
-      MYSQL_PASSWORD: userpassword
     ports:
-      - "3306:3306"
-    volumes:
-      - printpoint_db_data:/var/lib/mysql
-
-volumes:
-  printpoint_db_data:
+      - "80:80"
